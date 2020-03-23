@@ -3,6 +3,7 @@ Very simple proxy golang using Echo and Algorand golang SDK
 
 ## To build
 go get -u github.com/labstack/echo/...
+
 go get github.com/algorand/go-algorand-sdk/...
 
 go build simplealgorandproxy.go
