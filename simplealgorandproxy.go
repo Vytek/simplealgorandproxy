@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -14,11 +15,13 @@ import (
 
 // Local KMD
 const kmdAddress = "http://127.0.0.1:7833"
-const kmdToken = "<kmd token>"
+
+//const kmdToken = "<token_svilupp>"  //Sviluppo
+const kmdToken = "<token_esercizio>" //Esercizio
 
 // Purestake
 const algodAddress = "https://testnet-algorand.api.purestake.io/ps1"
-const algodToken = "<purestack token>"
+const algodToken = "<token_testnet>"
 
 // To and From Addresses
 const toAddr = "N2CNZ5VZD3DNMOWPN5Z3CXANEQWYZMF7YEUONO4355M4QHHBPRG3AHRASI"
@@ -27,10 +30,18 @@ const toAddr = "N2CNZ5VZD3DNMOWPN5Z3CXANEQWYZMF7YEUONO4355M4QHHBPRG3AHRASI"
 const fromAddr = "N2CNZ5VZD3DNMOWPN5Z3CXANEQWYZMF7YEUONO4355M4QHHBPRG3AHRASI"
 
 // Secret Algorand password
-const WalletPassword = "<WalletPassword>"
+const WalletPassword = "<wallet_password>"
 
 // WalletID
-const WalletID = "<WalletID>"
+const WalletID = "<wallet_name>"
+
+// JSON to send in transaction
+type DataJSON struct {
+	Type          string
+	HashFile      string
+	HashFilePADES string
+	DateTime      string
+}
 
 func main() {
 	// Echo instance
@@ -41,12 +52,12 @@ func main() {
 	e.Use(middleware.Recover())
 
 	// Routes
-	e.POST("/notarize/:user/:data_notarize", notarize)
-	e.PUT("/notarize/:user/:data_notarize", notarize)
-	e.GET("/notarize/:user/:data_notarize", notarize)
+	e.POST("/notarizeservices/:hashfile/:hashfilepades/:datetime", notarize)
+	e.PUT("/notarizeservices/:hashfile/:hashfilepades/:datetime", notarize)
+	e.GET("/notarizeservices/:hashfile/:hashfilepades/:datetime", notarize)
 
 	// Start server
-	e.Logger.Fatal(e.Start(":1323"))
+	e.Logger.Fatal(e.Start(":1324"))
 }
 
 //https://play.golang.org/p/RnEBFCJ9h0
@@ -62,10 +73,12 @@ func BytesToString(data []byte) string {
 
 // Handler
 func notarize(c echo.Context) error {
-	vUser := c.Param("user")
-	vDataNotarize := c.Param("data_notarize")
+	vHash := c.Param("hashfile")
+	vHashPADES := c.Param("hashfilepades")
+	vDateTime := c.Param("datetime")
 
-	if IsBase64(vDataNotarize) {
+	//Simple check data inserted
+	if (len(vHash) == 64) && (len(vHashPADES) == 64) && (len(vDateTime) == 14) {
 		//Notarize on Algorand
 		// Create a kmd client
 		kmdClient, err := kmd.MakeClient(kmdAddress, kmdToken)
@@ -127,18 +140,16 @@ func notarize(c echo.Context) error {
 				"error": response})
 		}
 
-		// Decode Base64
-		// https://play.golang.org/p/GzwqG5IjsA
-		dataBase64, err := base64.StdEncoding.DecodeString(vDataNotarize)
-		if err != nil {
-			response := fmt.Sprintf("Error decoding Base64: %s\n", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": response})
+		// Create JSON for transaction
+		dataBase64ToSend := DataJSON{
+			Type:          "Data",
+			HashFile:      vHash,
+			HashFilePADES: vHashPADES,
+			DateTime:      vDateTime,
 		}
-
-		userBase64, err := base64.StdEncoding.DecodeString(vUser)
+		dataBase64, err := json.Marshal(dataBase64ToSend)
 		if err != nil {
-			response := fmt.Sprintf("Error decoding Base64: %s\n", err)
+			response := fmt.Sprintf("Error creating JSON for transaction: %s\n", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{
 				"error": response})
 		}
@@ -177,11 +188,12 @@ func notarize(c echo.Context) error {
 		fmt.Printf("Transaction ID: %s\n", sendResponse.TxID)
 
 		return c.JSON(http.StatusOK, map[string]string{
-			"user":          BytesToString(userBase64),
-			"data_notarize": vDataNotarize,
-			"txid":          sendResponse.TxID})
+			"hash":      vHash,
+			"hashpades": vHashPADES,
+			"datetime":  vDateTime,
+			"txid":      sendResponse.TxID})
 	} else {
 		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Please specify notarize data in Base64 format"})
+			"error": "Inserted data was not in expeted format!"})
 	}
 }
